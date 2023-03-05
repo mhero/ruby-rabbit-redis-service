@@ -1,0 +1,13 @@
+.DS_Store
+
+.env
+
+node_modules
+
+consumer/coverage
+
+producer/coverage
+
+endpoint/coverage
+
+

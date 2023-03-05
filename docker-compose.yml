@@ -1,0 +1,78 @@
+version: '3'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.11.5-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  redis:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - cache:/data
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cd producer && ruby config.ru
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cd consumer && ruby config.ru
+    restart: on-failure:10
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+  endpoint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - 4567
+    ports:
+      - 4567:4567
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: >
+      bash -c "cd endpoint && bundle exec rackup --host 0.0.0.0 -p 4567"
+volumes:
+  cache:
+    driver: local
